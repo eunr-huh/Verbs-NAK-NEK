@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Тренажёр перевода — венгерский</title>
+  <style>
+    body { font-family: sans-serif; max-width: 780px; margin: 2rem auto; line-height: 1.5; }
+    .card { border: 1px solid #ddd; padding: 1rem; border-radius: 8px; }
+    #result { margin-top: 0.75rem; font-weight: 600; }
+    .green { color: #0a6; }
+    .orange { color: #d77; }
+    .red { color: #c00; }
+    textarea { width: 100%; min-height: 80px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Перевод: венгерский</h1>
+  <div class="card">
+    <div id="prompt"></div>
+    <textarea id="input" placeholder="Введите перевод..."></textarea>
+    <div style="margin-top:0.5rem;">
+      <button id="check">Проверить</button>
+      <button id="next">Следующее предложение</button>
+      <button id="finish">Закончить упражнение</button>
+    </div>
+    <div id="result"></div>
+  </div>
+
+  <div id="summary" class="hidden">
+    <h2>Ваши попытки</h2>
+    <div id="summary-list"></div>
+    <p id="score"></p>
+  </div>
+
+<script>
+// Ваши задания
+const tasks = [
+  { prompt: "Я всегда помогаю маме.", answer: "Mindig segítek anyukámnak." },
+  { prompt: "Кому ты звонишь? — Моему другу.", answer: "Kinek telefonálsz? – A barátomnak." },
+  { prompt: "Анне не понравился этот фильм.", answer: "Annának nem tetszett ez a film." },
+  { prompt: "Йожеф наливает вина гостям.", answer: "József bort tölt a vendégeknek." },
+  { prompt: "Габор покупает цветы не жене, а своей подруге.", answer: "Gábor nem a feleségének, hanem a barátnőjének vesz virágot." },
+  { prompt: "Учитель звонит директору.", answer: "A tanár telefonál az igazgatónak." },
+  { prompt: "Почему ты не готовишь обед семье?", answer: "Miért не főzöl ebédet a családnak?" },
+  { prompt: "Я всегда помогаю другу.", answer: "Mindig segítek a barátомnak." },
+  { prompt: "Мы пишем письмо бабушке.", answer: "Levelet írunk a nagymamának." },
+  { prompt: "Она приносит воду ребенку.", answer: "Vizet hoz a gyereknek." },
+  { prompt: "Ты читаешь сказку внуку.", answer: "Mesét olvasol az unокádnak. → Mesét olvasol az unokádnak." },
+  { prompt: "Я звоню маме каждый день.", answer: "Minden nap telefonálok anyukámnak." },
+  { prompt: "Моя жена приносит мне лекарство.", answer: "A feleségem gyógyszert hoz nekem." },
+  { prompt: "Янош покупает сыну новый компьютер.", answer: "János új számítógépet vesz a fiának." },
+  { prompt: "Адам не цветы, а книгу покупает жене.", answer: "Ádám nem virágot, hanem egy könyvet vesz a feleségének." },
+  { prompt: "Габор бронирует подруге номер в гостинице.", answer: "Gábor szobát foglal a barátnőjének a szállodában." },
+  { prompt: "Ты делаешь мне чай.", answer: "Teát készítesz nekem. / Teát csinálsz nekem." },
+  { prompt: "Вы (ты и ты) пишете письмо дедушке.", answer: "Levelet írtok a nagypapának." },
+  { prompt: "Гид показывает венгерским туристам город.", answer: "Az ideгенvezető várost mutat a magyar turistáknak." },
+  { prompt: "Я отправлю тебе открытку из Парижа на Новый год.", answer: "Újévre küldök neked egy képeslapot Párizsból." },
+  { prompt: "Они не звонят нам по выходным.", answer: "Hétвégén nem телефонálnak nekünk." },
+  { prompt: "Подойди, я кое-что тебе скажу.", answer: "Gyere ide, mondok neked valamit." },
+  { prompt: "Я подарю сестре книгу на день рождения.", answer: "Könyvet veszek a nővéremnek születésnapjára." },
+  { prompt: "Мы покупаем детям мороженое.", answer: "Fagyit veszünk a gyerekeknek." },
+  { prompt: "Ты рассказываешь историю друзьям.", answer: "Történetet mesélsz a barátaidnak." },
+  { prompt: "Бабушка вяжет внукам свитера.", answer: "A nagymama pulóvert köt az unokáknak." },
+  { prompt: "Я объясняю задание студентам.", answer: "A feladatot magyarázom a diákoknak." },
+  { prompt: "Ты можешь помочь мне?", answer: "Tudsz segíteni nekem?" },
+  { prompt: "Мама читает мне книгу перед сном.", answer: "Anya lefekvés előtt könyvet olvas nekem." },
+  { prompt: "Мы готовим сюрприз для учительницы.", answer: "Meglepetést készítünk a tanárnőnek." },
+];
+
+let pool = shuffle([...tasks]);
+let current = null;
+const attempts = [];
+
+function shuffle(arr) { return arr.sort(() => Math.random() - 0.5); }
+
+// Левенштейн — считаем число отличий
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m+1}, () => Array(n+1).fill(0));
+  for (let i=0;i<=m;i++) dp[i][0]=i;
+  for (let j=0;j<=n;j++) dp[0][j]=j;
+  for (let i=1;i<=m;i++){
+    for (let j=1;j<=n;j++){
+      const cost = a[i-1] === b[j-1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i-1][j]+1,
+        dp[i][j-1]+1,
+        dp[i-1][j-1]+cost
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function render() {
+  if (!pool.length) pool = shuffle([...tasks]);
+  current = pool.pop();
+  document.getElementById("prompt").textContent = current.prompt;
+  document.getElementById("input").value = "";
+  const resultEl = document.getElementById("result");
+  resultEl.textContent = "";
+  resultEl.className = "";
+}
+
+function check() {
+  const user = document.getElementById("input").value.trim();
+  if (!user) return;
+  const dist = levenshtein(user.toLowerCase(), current.answer.toLowerCase());
+  let cls = "red", msg = `❌ ${current.answer}`;
+  if (dist === 0) { cls = "green"; msg = "✅ Правильно!"; }
+  else if (dist <= 5) { cls = "orange"; msg = `⚠️ Почти, ошибок: ${dist}`; }
+  const resultEl = document.getElementById("result");
+  resultEl.className = cls;
+  resultEl.textContent = msg;
+  attempts.push({ prompt: current.prompt, user, correct: current.answer, dist, cls });
+}
+
+function finish() {
+  const summary = document.getElementById("summary");
+  const list = document.getElementById("summary-list");
+  const score = document.getElementById("score");
+  list.innerHTML = attempts.map(a => `
+    <div style="margin-bottom:0.75rem;">
+      <div><strong>Задание:</strong> ${a.prompt}</div>
+      <div><strong>Ваш ответ:</strong> ${a.user}</div>
+      <div><strong>Правильно:</strong> ${a.correct}</div>
+      <div>Ошибок: ${a.dist}</div>
+    </div>
+  `).join("");
+  const correctCount = attempts.filter(a => a.dist === 0).length;
+  score.textContent = `Правильных ответов: ${correctCount} из ${attempts.length || 1}`;
+  summary.classList.remove("hidden");
+  summary.scrollIntoView({ behavior: "smooth" });
+}
+
+document.getElementById("check").onclick = check;
+document.getElementById("next").onclick = render;
+document.getElementById("finish").onclick = finish;
+
+render();
+</script>
+</body>
+</html>
